@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=hanote
+Comment=Lightweight sticky notes
+Exec=hanote
+Icon=com.suhokang.hanote
+Type=Application
+Categories=Utility;GTK;
+StartupWMClass=com.suhokang.hanote

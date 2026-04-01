@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="noteGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FFD000"/>
+    </linearGradient>
+    <linearGradient id="foldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E6B800"/>
+      <stop offset="100%" stop-color="#CCa200"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="2" dy="3" stdDeviation="6" flood-color="#00000030"/>
+    </filter>
+  </defs>
+
+  <!-- Note body -->
+  <path d="M28 16 H228 V196 L184 240 H28 Z" fill="url(#noteGrad)" rx="8" filter="url(#shadow)"/>
+
+  <!-- Rounded top-left and bottom-left corners -->
+  <rect x="28" y="16" width="200" height="224" rx="10" ry="10" fill="url(#noteGrad)" filter="url(#shadow)" clip-path="url(#clipNote)"/>
+  <clipPath id="clipNote">
+    <path d="M28 16 H228 V196 L184 240 H28 Z"/>
+  </clipPath>
+
+  <!-- Fold triangle -->
+  <path d="M228 196 L184 240 L184 204 Q184 196 192 196 Z" fill="url(#foldGrad)"/>
+
+  <!-- Subtle fold line -->
+  <path d="M228 196 L184 196" stroke="#D4A800" stroke-width="0.5" fill="none"/>
+  <path d="M184 240 L184 204" stroke="#D4A800" stroke-width="0.5" fill="none"/>
+
+  <!-- Letter H -->
+  <text x="128" y="128" text-anchor="middle" dominant-baseline="central"
+        font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+        font-size="120" font-weight="700" fill="#5C4800" opacity="0.85">
+    H
+  </text>
+</svg>
