@@ -16,6 +16,7 @@ void app_save_notes(void) {
 
 void app_sync_positions(void) {
     if (compositor_get_type() == COMPOSITOR_UNKNOWN) return;
+
     for (GList *l = all_windows; l; l = l->next) {
         NoteWindow *nw = l->data;
         int abs_x, abs_y;
@@ -28,6 +29,21 @@ void app_sync_positions(void) {
                                    &nw->data->rel_x, &nw->data->rel_y);
             }
         }
+    }
+
+    GList *sorted = compositor_get_z_order(all_windows);
+    if (sorted && g_list_length(sorted) == g_list_length(all_windows)) {
+        GList *new_notes = NULL;
+        for (GList *l = sorted; l; l = l->next) {
+            NoteWindow *nw = l->data;
+            new_notes = g_list_append(new_notes, nw->data);
+        }
+        g_list_free(all_notes);
+        g_list_free(all_windows);
+        all_notes = new_notes;
+        all_windows = sorted;
+    } else {
+        g_list_free(sorted);
     }
 }
 

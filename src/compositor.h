@@ -16,3 +16,4 @@ void           compositor_init(void);
 CompositorType compositor_get_type(void);
 void           compositor_move_window(NoteWindow *nw, int abs_x, int abs_y);
 gboolean       compositor_get_window_position(NoteWindow *nw, int *abs_x, int *abs_y);
+GList         *compositor_get_z_order(GList *windows);

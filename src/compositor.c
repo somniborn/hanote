@@ -268,6 +268,130 @@ static gboolean kde_get_pos(NoteWindow *nw, int *x, int *y) {
     return found;
 }
 
+/* ── Z-order ───────────────────────────────────────────────────── */
+
+static void set_all_titles(GList *windows) {
+    for (GList *l = windows; l; l = l->next) {
+        NoteWindow *nw = l->data;
+        gtk_window_set_title(nw->window, nw->data->id);
+    }
+    while (g_main_context_pending(NULL))
+        g_main_context_iteration(NULL, FALSE);
+}
+
+static void clear_all_titles(GList *windows) {
+    for (GList *l = windows; l; l = l->next) {
+        NoteWindow *nw = l->data;
+        gtk_window_set_title(nw->window, "");
+    }
+}
+
+static NoteWindow *find_nw_by_id(GList *windows, const char *id) {
+    if (!id) return NULL;
+    for (GList *l = windows; l; l = l->next) {
+        NoteWindow *nw = l->data;
+        if (nw->data->id && strcmp(nw->data->id, id) == 0)
+            return nw;
+    }
+    return NULL;
+}
+
+typedef struct { NoteWindow *nw; int key; } ZEntry;
+
+static int z_entry_cmp_desc(const void *a, const void *b) {
+    const ZEntry *ea = a, *eb = b;
+    return (ea->key > eb->key) - (ea->key < eb->key);
+}
+
+/* Hyprland: focusHistoryID 0=topmost, higher=lower z. -1=unfocused=bottom */
+static GList *hypr_get_z_order(GList *windows) {
+    set_all_titles(windows);
+
+    GList *result = NULL;
+    char *json_str = run_cmd("hyprctl clients -j");
+    if (!json_str) goto done;
+
+    JsonParser *parser = json_parser_new();
+    if (!json_parser_load_from_data(parser, json_str, -1, NULL)) {
+        g_object_unref(parser);
+        g_free(json_str);
+        goto done;
+    }
+
+    GArray *entries = g_array_new(FALSE, FALSE, sizeof(ZEntry));
+    JsonArray *arr = json_node_get_array(json_parser_get_root(parser));
+    for (guint i = 0; i < json_array_get_length(arr); i++) {
+        JsonObject *obj = json_array_get_object_element(arr, i);
+        const char *cls = json_object_get_string_member(obj, "class");
+        if (!cls || strcmp(cls, "com.suhokang.hanote") != 0) continue;
+        const char *title = json_object_get_string_member(obj, "title");
+        NoteWindow *nw = find_nw_by_id(windows, title);
+        if (!nw) continue;
+
+        ZEntry e;
+        e.nw = nw;
+        int fid = json_object_has_member(obj, "focusHistoryID")
+                  ? (int)json_object_get_int_member(obj, "focusHistoryID") : -1;
+        e.key = (fid < 0) ? G_MAXINT : fid;
+        g_array_append_val(entries, e);
+    }
+    g_object_unref(parser);
+    g_free(json_str);
+
+    /* Sort descending by key: highest focusHistoryID first (bottom) → 0 last (top) */
+    g_array_sort(entries, z_entry_cmp_desc);
+
+    for (guint i = 0; i < entries->len; i++)
+        result = g_list_append(result, g_array_index(entries, ZEntry, i).nw);
+    g_array_free(entries, TRUE);
+
+done:
+    clear_all_titles(windows);
+    return result;
+}
+
+/* Sway: floating_nodes array order = stacking order (later = higher z) */
+static void sway_collect_z(GList *windows, JsonNode *node, GList **result) {
+    if (!node || !JSON_NODE_HOLDS_OBJECT(node)) return;
+    JsonObject *obj = json_node_get_object(node);
+
+    if (json_object_has_member(obj, "app_id")) {
+        const char *app = json_object_get_string_member(obj, "app_id");
+        const char *name = json_object_has_member(obj, "name")
+                           ? json_object_get_string_member(obj, "name") : NULL;
+        if (app && strcmp(app, "com.suhokang.hanote") == 0) {
+            NoteWindow *nw = find_nw_by_id(windows, name);
+            if (nw) *result = g_list_append(*result, nw);
+            return;
+        }
+    }
+
+    const char *keys[] = {"nodes", "floating_nodes", NULL};
+    for (int k = 0; keys[k]; k++) {
+        if (!json_object_has_member(obj, keys[k])) continue;
+        JsonArray *a = json_object_get_array_member(obj, keys[k]);
+        for (guint i = 0; i < json_array_get_length(a); i++)
+            sway_collect_z(windows, json_array_get_element(a, i), result);
+    }
+}
+
+static GList *sway_get_z_order(GList *windows) {
+    set_all_titles(windows);
+
+    GList *result = NULL;
+    char *json_str = run_cmd("swaymsg -t get_tree");
+    if (json_str) {
+        JsonParser *parser = json_parser_new();
+        if (json_parser_load_from_data(parser, json_str, -1, NULL))
+            sway_collect_z(windows, json_parser_get_root(parser), &result);
+        g_object_unref(parser);
+        g_free(json_str);
+    }
+
+    clear_all_titles(windows);
+    return result;
+}
+
 /* ── Public API ────────────────────────────────────────────────── */
 
 void compositor_move_window(NoteWindow *nw, int abs_x, int abs_y) {
@@ -287,4 +411,14 @@ gboolean compositor_get_window_position(NoteWindow *nw, int *abs_x, int *abs_y) 
     case COMPOSITOR_UNKNOWN:  return FALSE;
     }
     return FALSE;
+}
+
+GList *compositor_get_z_order(GList *windows) {
+    switch (comp_type) {
+    case COMPOSITOR_HYPRLAND: return hypr_get_z_order(windows);
+    case COMPOSITOR_SWAY:     return sway_get_z_order(windows);
+    case COMPOSITOR_KDE:      return NULL;
+    case COMPOSITOR_UNKNOWN:  return NULL;
+    }
+    return NULL;
 }
